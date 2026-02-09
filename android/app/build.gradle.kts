@@ -16,6 +16,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        
+        // --- FIX 1: ENABLE DESUGARING HERE ---
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -27,7 +30,10 @@ android {
         applicationId = "com.novo.field_pro"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        
+        // --- FIX 2: SET MIN SDK TO 21 (Required for Notifications) ---
+        minSdk = flutter.minSdkVersion 
+        
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -44,4 +50,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// --- FIX 3: ADD DEPENDENCIES BLOCK AT THE BOTTOM ---
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

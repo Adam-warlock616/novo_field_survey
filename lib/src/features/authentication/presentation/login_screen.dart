@@ -1,3 +1,6 @@
+import 'package:field_pro/src/features/authentication/presentation/forgot_password_screen.dart';
+import 'package:field_pro/src/features/authentication/presentation/login_controller.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,33 +16,88 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // Key to validate the form (check if email is empty, etc.)
+  // Key to validate the form
   final _formKey = GlobalKey<FormState>();
+
+  // --- 1. THE TRANSLATOR: Turns ugly codes into nice text ---
+  String _getHumanReadableError(Object e) {
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'invalid-email':
+          return "Please check your email address format.";
+        case 'user-not-found':
+          return "No account found with this email.";
+        case 'wrong-password':
+          return "Incorrect password. Please try again.";
+        case 'network-request-failed':
+          return "No internet connection. Please check your network.";
+        case 'user-disabled':
+          return "This account has been disabled. Contact support.";
+        case 'too-many-requests':
+          return "Too many attempts. Please wait a moment.";
+        default:
+          return e.message ?? "Authentication failed.";
+      }
+    }
+    return e.toString();
+  }
 
   @override
   void dispose() {
-    // ALWAYS dispose controllers to free up memory (Junior Dev Interview Question!)
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   void _submitLogin() {
-    if (_formKey.currentState!.validate()) {
-      // Logic comes later. For now, print to console.
-      print("Logging in with ${_emailController.text}");
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
 
-      // TODO: Call the AuthRepository here
+    if (_formKey.currentState!.validate()) {
+      // Call the controller to sign in
+      ref
+          .read(loginControllerProvider.notifier)
+          .signIn(
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Access the theme we defined earlier
+    // 1. WATCH the state (Is it loading?)
+    final state = ref.watch(loginControllerProvider);
+
+    // 2. LISTEN for Errors (Show the nice SnackBar)
+    ref.listen<AsyncValue<void>>(loginControllerProvider, (previous, next) {
+      if (next.hasError) {
+        final niceMessage = _getHumanReadableError(next.error!);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(child: Text(niceMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(10),
+          ),
+        );
+      }
+    });
+
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface, // Clean White/Surface color
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -50,11 +108,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 1. Logo Section (Placeholder Icon for now)
-                  Icon(
+                  // --- Logo Section ---
+                  const Icon(
                     Icons.solar_power_outlined,
-                    size: 100,
-                    color: theme.colorScheme.primary, // Eco Green
+                    size: 80,
+                    color: Colors.green,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -62,7 +120,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
+                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -75,28 +133,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 48),
 
-                  // 2. Email Field
+                  // --- Email Field ---
                   TextFormField(
                     controller: _emailController,
                     decoration: const InputDecoration(
                       labelText: "Employee Email",
                       prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(), // Standard box border
+                      border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
+                      if (!value.contains('@')) {
+                        return 'Please enter a valid email';
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Password Field
+                  // --- Password Field ---
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true, // Hide password
+                    obscureText: true,
                     decoration: const InputDecoration(
                       labelText: "Password",
                       prefixIcon: Icon(Icons.lock_outline),
@@ -109,29 +170,65 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       return null;
                     },
                   ),
+
+                  // --- Forgot Password Button ---
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        // Navigate to Forgot Password Screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Forgot Password?",
+                        style: TextStyle(fontSize: 14, color: Colors.green),
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
 
-                  // 4. Login Button
+                  // --- Login Button ---
                   SizedBox(
-                    height: 50, // Make button tall and touch-friendly
+                    height: 50,
                     child: ElevatedButton(
-                      onPressed: _submitLogin,
+                      onPressed: state.isLoading ? null : _submitLogin,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            theme.colorScheme.secondary, // Solar Orange
+                        backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
-                        "LOGIN",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: state.isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              "LOGIN",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
+                  ),
+
+                  const SizedBox(height: 32),
+                  const Text(
+                    "Contact administrator for support",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
               ),
